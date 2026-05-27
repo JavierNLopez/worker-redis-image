@@ -5,15 +5,22 @@
 
     <meta charset="UTF-8">
 
-    <meta name="viewport"
-    content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="
+        width=device-width,
+        initial-scale=1.0
+        "
+    >
 
     <title>
-        Distributed Image Processor
+        Procesador Distribuido
     </title>
 
-    <link rel="stylesheet"
-    href="style.css">
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
 
 </head>
 
@@ -22,20 +29,66 @@
     <div class="container">
 
         <h1>
-            Procesador Distribuido
+            🚀 Procesador Distribuido
             de Imágenes
         </h1>
 
+        <!-- DASHBOARD -->
+
+        <div class="dashboard">
+
+            <div class="dashboard-card">
+
+                <h2 id="workersCount">
+                    0
+                </h2>
+
+                <p>
+                    Workers Activos
+                </p>
+
+            </div>
+
+            <div class="dashboard-card">
+
+                <h2 id="pendingJobs">
+                    0
+                </h2>
+
+                <p>
+                    Tareas Pendientes
+                </p>
+
+            </div>
+
+            <div class="dashboard-card">
+
+                <h2 id="completedJobs">
+                    0
+                </h2>
+
+                <p>
+                    Tareas Completadas
+                </p>
+
+            </div>
+
+        </div>
+
+        <!-- DROP ZONE -->
+
         <div
-            class="upload-box"
+            class="drop-zone"
             id="dropZone"
         >
 
-            <p>
+            <h2>
                 Arrastra una imagen aquí
-            </p>
+            </h2>
 
-            <p>o</p>
+            <p>
+                o selecciona un archivo
+            </p>
 
             <input
                 type="file"
@@ -43,19 +96,26 @@
                 accept="image/*"
             >
 
-            <br><br>
+            <br>
 
-            <button onclick="uploadImage()">
+            <button
+                onclick="uploadImage()"
+            >
                 Subir Imagen
             </button>
 
         </div>
 
-        <div id="tasks"></div>
+        <!-- TASKS -->
+
+        <div id="tasks">
+
+        </div>
 
     </div>
 
     <script src="app.js"></script>
 
 </body>
+
 </html>

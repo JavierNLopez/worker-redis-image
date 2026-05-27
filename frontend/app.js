@@ -12,12 +12,12 @@ document.getElementById("tasks")
 
 
 // ======================
-// Drag & Drop
+// DRAG & DROP
 // ======================
 
 dropZone.addEventListener(
     "dragover",
-    (e) => {
+    (e)=>{
 
         e.preventDefault()
 
@@ -29,7 +29,7 @@ dropZone.addEventListener(
 
 dropZone.addEventListener(
     "dragleave",
-    () => {
+    ()=>{
 
         dropZone.classList.remove(
             "dragover"
@@ -39,7 +39,7 @@ dropZone.addEventListener(
 
 dropZone.addEventListener(
     "drop",
-    (e) => {
+    (e)=>{
 
         e.preventDefault()
 
@@ -54,7 +54,7 @@ dropZone.addEventListener(
 
 
 // ======================
-// Upload image
+// UPLOAD IMAGE
 // ======================
 
 async function uploadImage(){
@@ -110,14 +110,14 @@ async function uploadImage(){
         console.error(error)
 
         alert(
-            "Error conectando con backend"
+            "Error conectando backend"
         )
     }
 }
 
 
 // ======================
-// Create Task Card
+// TASK CARD
 // ======================
 
 function createTaskCard(taskId){
@@ -132,7 +132,7 @@ function createTaskCard(taskId){
 
     card.innerHTML = `
         <h3>
-            Tarea ${taskId}
+            📦 Tarea ${taskId}
         </h3>
 
         <div class="
@@ -147,7 +147,7 @@ function createTaskCard(taskId){
 
 
 // ======================
-// SSE listener
+// SSE
 // ======================
 
 function listenTask(taskId){
@@ -172,51 +172,63 @@ function listenTask(taskId){
         statusDiv.innerHTML =
         `Estado: ${data.status}`
 
-        // ======================
+        // PROCESSING
+
+        if(
+            data.status ===
+            "processing"
+        ){
+
+            statusDiv.className =
+            "status loading"
+        }
+
         // COMPLETED
-        // ======================
 
         if(
             data.status ===
             "completed"
         ){
 
-            statusDiv.classList.remove(
-                "loading"
-            )
+            statusDiv.className =
+            "status completed"
 
             card.innerHTML += `
                 <img
-                src="${API_URL}${data.image_url}"
-                >
+                src="
+                ${API_URL}
+                ${data.image_url}
+                ">
 
-                <br><br>
+                <br>
 
                 <a
-                href="${API_URL}${data.image_url}"
+                href="
+                ${API_URL}
+                ${data.image_url}
+                "
                 target="_blank"
                 >
+
                     <button>
                         Descargar
                     </button>
+
                 </a>
             `
 
             eventSource.close()
         }
 
-        // ======================
         // ERROR
-        // ======================
 
         if(
             data.status ===
             "error"
         ){
 
-            statusDiv.classList.remove(
-                "loading"
-            )
+            statusDiv.className =
+            "status error"
 
             card.innerHTML += `
                 <p>
@@ -232,7 +244,52 @@ function listenTask(taskId){
 
 
 // ======================
-// localStorage
+// DASHBOARD
+// ======================
+
+async function loadDashboard(){
+
+    try{
+
+        const response =
+        await fetch(
+            `${API_URL}/dashboard`
+        )
+
+        const data =
+        await response.json()
+
+        document.getElementById(
+            "workersCount"
+        ).innerText =
+        data.workers.length
+
+        document.getElementById(
+            "pendingJobs"
+        ).innerText =
+        data.pending_jobs
+
+        document.getElementById(
+            "completedJobs"
+        ).innerText =
+        data.completed_jobs
+
+    }catch(error){
+
+        console.error(error)
+    }
+}
+
+setInterval(
+    loadDashboard,
+    2000
+)
+
+loadDashboard()
+
+
+// ======================
+// LOCAL STORAGE
 // ======================
 
 function saveTask(taskId){

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+    content="width=device-width, initial-scale=1.0">
+
+    <title>
+        Distributed Image Processor
+    </title>
+
+    <link rel="stylesheet"
+    href="style.css">
+
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>
+            Procesador Distribuido
+            de Imágenes
+        </h1>
+
+        <div
+            class="upload-box"
+            id="dropZone"
+        >
+
+            <p>
+                Arrastra una imagen aquí
+            </p>
+
+            <p>o</p>
+
+            <input
+                type="file"
+                id="fileInput"
+                accept="image/*"
+            >
+
+            <br><br>
+
+            <button onclick="uploadImage()">
+                Subir Imagen
+            </button>
+
+        </div>
+
+        <div id="tasks"></div>
+
+    </div>
+
+    <script src="app.js"></script>
+
+</body>
+</html>

@@ -1,21 +1,66 @@
 services:
+
+  backend:
+    build: ./backend
+
+    container_name: backend
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - ./uploads:/app/uploads
+      - ./processed:/app/processed
+
+    depends_on:
+      - redis
+
   redis:
-    image: redis:alpine
+    image: redis:latest
+
     container_name: redis
+
     ports:
       - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 2s
-      timeout: 3s
-      retries: 5
 
-  worker:
-    build: ./worker
-    environment:
-      REDIS_HOST: redis
-    deploy:
-      replicas: 2
+  worker1:
+    build: ./backend
+
+    container_name: worker1
+
+    command: python worker.py
+
+    volumes:
+      - ./uploads:/app/uploads
+      - ./processed:/app/processed
+
     depends_on:
-      redis:
-        condition: service_healthy
+      - redis
+
+  worker2:
+    build: ./backend
+
+    container_name: worker2
+
+    command: python worker.py
+
+    volumes:
+      - ./uploads:/app/uploads
+      - ./processed:/app/processed
+
+    depends_on:
+      - redis
+
+  worker3:
+    build: ./backend
+
+    container_name: worker3
+
+    command: python worker.py
+
+    volumes:
+      - ./uploads:/app/uploads
+      - ./processed:/app/processed
+
+    depends_on:
+      - redis

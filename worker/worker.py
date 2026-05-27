@@ -1,63 +1,143 @@
-import sys
-import redis
-import redis.exceptions
 import os
 import time
-import signal
 import json
+import signal
+import sys
 
-REDIS_HOST = os.environ.get('REDIS_HOST')
-if not REDIS_HOST:
-    print("Error: La variable de entorno REDIS_HOST no está definida", flush=True)
+import boto3
+import redis
+from botocore.exceptions import BotoCoreError, ClientError
+
+
+# =========================
+# ENV VARIABLES
+# =========================
+
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+
+SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL")
+AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+S3_BUCKET = os.getenv("S3_BUCKET")
+
+
+if not SQS_QUEUE_URL:
+    print("ERROR: SQS_QUEUE_URL no definida", flush=True)
     sys.exit(1)
 
-r = redis.Redis(host=REDIS_HOST, decode_responses=True)
+if not S3_BUCKET:
+    print("WARNING: S3_BUCKET no definida (uploads desactivados)", flush=True)
 
-redis_ready = False
-while not redis_ready:
+
+# =========================
+# CLIENTS
+# =========================
+
+r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+
+sqs = boto3.client("sqs", region_name=AWS_REGION)
+s3 = boto3.client("s3", region_name=AWS_REGION)
+
+
+# =========================
+# REDIS CHECK
+# =========================
+
+while True:
     try:
         if r.ping():
             print("Redis is connected", flush=True)
-            redis_ready = True
-    except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError) as e:
-        print(f"Redis connection error: {e}", flush=True)
-        print("Waiting for redis", flush=True)
-        time.sleep(3)
+            break
     except Exception as e:
-        print(f"Waiting for redis: {e}", flush=True)
+        print(f"Waiting Redis... {e}", flush=True)
         time.sleep(3)
 
 print("Redis is active", flush=True)
 
-run = True
-stop_after_next = len(sys.argv) > 1 and sys.argv[1] == 'stop'
 
+# =========================
+# SHUTDOWN HANDLER
+# =========================
+
+run = True
 
 def handle_signal(signum, frame):
     global run
-    print(f"\nSeñal {signum} recibida, deteniendo worker...", flush=True)
+    print(f"Signal {signum} received, stopping worker...", flush=True)
     run = False
-
 
 signal.signal(signal.SIGINT, handle_signal)
 signal.signal(signal.SIGTERM, handle_signal)
 
+
+# =========================
+# PROCESS LOGIC
+# =========================
+
+def process_message(body: dict):
+    job_id = body.get("id")
+    filename = body.get("filename")
+
+    print(f"Processing job {job_id} -> {filename}", flush=True)
+
+    # Mark in Redis
+    r.set(f"job:{job_id}", "processing")
+
+    # Simulate work
+    time.sleep(2)
+
+    # Optional S3 upload simulation
+    if S3_BUCKET:
+        try:
+            s3.put_object(
+                Bucket=S3_BUCKET,
+                Key=f"processed/{filename}",
+                Body=b"processed-data"
+            )
+            print(f"Uploaded {filename} to S3", flush=True)
+        except (BotoCoreError, ClientError) as e:
+            print(f"S3 error: {e}", flush=True)
+
+    r.set(f"job:{job_id}", "done")
+    print(f"Job {job_id} completed", flush=True)
+
+
+# =========================
+# MAIN LOOP (SQS)
+# =========================
+
+print("Worker started, waiting for SQS messages...", flush=True)
+
 while run:
-    if stop_after_next:
-        run = False
-
     try:
-        result = r.brpop('message_queue', timeout=2)
-    except redis.exceptions.RedisError as e:
-        print(f"Error de Redis: {e}", flush=True)
+        response = sqs.receive_message(
+            QueueUrl=SQS_QUEUE_URL,
+            MaxNumberOfMessages=1,
+            WaitTimeSeconds=10
+        )
+
+        messages = response.get("Messages", [])
+
+        if not messages:
+            continue
+
+        for msg in messages:
+            body = json.loads(msg["Body"])
+
+            process_message(body)
+
+            sqs.delete_message(
+                QueueUrl=SQS_QUEUE_URL,
+                ReceiptHandle=msg["ReceiptHandle"]
+            )
+
+    except (BotoCoreError, ClientError) as e:
+        print(f"AWS error: {e}", flush=True)
+        time.sleep(5)
+
+    except Exception as e:
+        print(f"Unexpected error: {e}", flush=True)
         time.sleep(3)
-        continue
 
-    if result is None:
-        continue
 
-    queue, message = result
-    dict_data = json.loads(message)
-    print(f'Imagen "{dict_data['filename']}" procesada exitosamente', flush=True)
-
-print("Worker detenido.", flush=True)
+print("Worker stopped.", flush=True)

@@ -1,66 +1,36 @@
 services:
 
-  backend:
-    build: ./backend
-
-    container_name: backend
-
-    ports:
-      - "8000:8000"
-
-    volumes:
-      - ./uploads:/app/uploads
-      - ./processed:/app/processed
-
-    depends_on:
-      - redis
-
   redis:
-    image: redis:latest
-
+    image: redis/redis-stack
     container_name: redis
-
     ports:
       - "6379:6379"
 
-  worker1:
+  backend:
     build: ./backend
-
-    container_name: worker1
-
-    command: python worker.py
-
+    container_name: backend
+    ports:
+      - "8000:8000"
     volumes:
       - ./uploads:/app/uploads
       - ./processed:/app/processed
-
+      - ./logs:/app/logs
     depends_on:
       - redis
 
-  worker2:
-    build: ./backend
-
-    container_name: worker2
-
-    command: python worker.py
-
+  worker:
+    build: ./worker
     volumes:
       - ./uploads:/app/uploads
       - ./processed:/app/processed
-
+      - ./logs:/app/logs
     depends_on:
       - redis
 
-  worker3:
-    build: ./backend
-
-    container_name: worker3
-
-    command: python worker.py
-
+  frontend:
+    image: nginx:latest
+    container_name: frontend
+    ports:
+      - "5500:80"
     volumes:
-      - ./uploads:/app/uploads
-      - ./processed:/app/processed
-
-    depends_on:
-      - redis
+      - ./frontend:/usr/share/nginx/html

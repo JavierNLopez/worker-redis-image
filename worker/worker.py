@@ -1,143 +1,187 @@
-import os
-import time
-import json
-import signal
-import sys
-
-import boto3
 import redis
-from botocore.exceptions import BotoCoreError, ClientError
+import json
+import time
+import os
+
+from PIL import Image, ImageFilter
+
+redis_client = redis.Redis(
+    host="redis",
+    port=6379,
+    decode_responses=True
+)
+
+UPLOAD_DIR = "uploads"
+PROCESSED_DIR = "processed"
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(PROCESSED_DIR, exist_ok=True)
 
 
-# =========================
-# ENV VARIABLES
-# =========================
-
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-
-SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL")
-AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-S3_BUCKET = os.getenv("S3_BUCKET")
+worker_id = os.environ.get("HOSTNAME", "worker")
 
 
-if not SQS_QUEUE_URL:
-    print("ERROR: SQS_QUEUE_URL no definida", flush=True)
-    sys.exit(1)
+def log(message):
 
-if not S3_BUCKET:
-    print("WARNING: S3_BUCKET no definida (uploads desactivados)", flush=True)
+    print(message)
 
+    redis_client.lpush("logs", message)
 
-# =========================
-# CLIENTS
-# =========================
-
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-
-sqs = boto3.client("sqs", region_name=AWS_REGION)
-s3 = boto3.client("s3", region_name=AWS_REGION)
+    redis_client.ltrim("logs", 0, 50)
 
 
-# =========================
-# REDIS CHECK
-# =========================
+log(f"{worker_id} iniciado")
+
 
 while True:
+
     try:
-        if r.ping():
-            print("Redis is connected", flush=True)
-            break
-    except Exception as e:
-        print(f"Waiting Redis... {e}", flush=True)
-        time.sleep(3)
 
-print("Redis is active", flush=True)
-
-
-# =========================
-# SHUTDOWN HANDLER
-# =========================
-
-run = True
-
-def handle_signal(signum, frame):
-    global run
-    print(f"Signal {signum} received, stopping worker...", flush=True)
-    run = False
-
-signal.signal(signal.SIGINT, handle_signal)
-signal.signal(signal.SIGTERM, handle_signal)
-
-
-# =========================
-# PROCESS LOGIC
-# =========================
-
-def process_message(body: dict):
-    job_id = body.get("id")
-    filename = body.get("filename")
-
-    print(f"Processing job {job_id} -> {filename}", flush=True)
-
-    # Mark in Redis
-    r.set(f"job:{job_id}", "processing")
-
-    # Simulate work
-    time.sleep(2)
-
-    # Optional S3 upload simulation
-    if S3_BUCKET:
-        try:
-            s3.put_object(
-                Bucket=S3_BUCKET,
-                Key=f"processed/{filename}",
-                Body=b"processed-data"
-            )
-            print(f"Uploaded {filename} to S3", flush=True)
-        except (BotoCoreError, ClientError) as e:
-            print(f"S3 error: {e}", flush=True)
-
-    r.set(f"job:{job_id}", "done")
-    print(f"Job {job_id} completed", flush=True)
-
-
-# =========================
-# MAIN LOOP (SQS)
-# =========================
-
-print("Worker started, waiting for SQS messages...", flush=True)
-
-while run:
-    try:
-        response = sqs.receive_message(
-            QueueUrl=SQS_QUEUE_URL,
-            MaxNumberOfMessages=1,
-            WaitTimeSeconds=10
+        redis_client.hset(
+            "workers_status",
+            worker_id,
+            json.dumps({
+                "status": "active",
+                "last_seen": str(time.strftime("%Y-%m-%d %H:%M:%S"))
+            })
         )
 
-        messages = response.get("Messages", [])
+        task_data = redis_client.lpop("tasks")
 
-        if not messages:
+        if not task_data:
+
+            time.sleep(1)
+
             continue
 
-        for msg in messages:
-            body = json.loads(msg["Body"])
+        task = json.loads(task_data)
 
-            process_message(body)
+        task_id = task["id"]
 
-            sqs.delete_message(
-                QueueUrl=SQS_QUEUE_URL,
-                ReceiptHandle=msg["ReceiptHandle"]
-            )
+        filename = task["filename"]
 
-    except (BotoCoreError, ClientError) as e:
-        print(f"AWS error: {e}", flush=True)
+        filepath = f"{UPLOAD_DIR}/{filename}"
+
+        log(f"{worker_id} procesando {filename}")
+
+        redis_client.hset(
+            "tasks_status",
+            task_id,
+            json.dumps({
+                "status": "processing"
+            })
+        )
+
+        # SIMULAR PROCESAMIENTO LENTO
         time.sleep(5)
 
+        image = Image.open(filepath)
+
+        base_name = filename.rsplit(".", 1)[0]
+
+        # =========================
+        # CONVERTIR RGBA -> RGB
+        # =========================
+
+        if image.mode == "RGBA":
+            image = image.convert("RGB")
+
+        # =========================
+        # RESIZE
+        # =========================
+
+        resized_name = f"{base_name}_resized.jpg"
+
+        resized_path = f"{PROCESSED_DIR}/{resized_name}"
+
+        resized = image.resize((800, 800))
+
+        resized.save(resized_path)
+
+        log(f"{worker_id} resize completado")
+
+        # =========================
+        # THUMBNAIL
+        # =========================
+
+        thumb_name = f"{base_name}_thumb.jpg"
+
+        thumb_path = f"{PROCESSED_DIR}/{thumb_name}"
+
+        thumb = image.copy()
+
+        thumb.thumbnail((200, 200))
+
+        thumb.save(thumb_path)
+
+        log(f"{worker_id} thumbnail generado")
+
+        # =========================
+        # GRAYSCALE
+        # =========================
+
+        gray_name = f"{base_name}_gray.jpg"
+
+        gray_path = f"{PROCESSED_DIR}/{gray_name}"
+
+        gray = image.convert("L")
+
+        gray.save(gray_path)
+
+        log(f"{worker_id} grayscale completado")
+
+        # =========================
+        # PNG
+        # =========================
+
+        png_name = f"{base_name}.png"
+
+        png_path = f"{PROCESSED_DIR}/{png_name}"
+
+        image.save(png_path, "PNG")
+
+        log(f"{worker_id} png generado")
+
+        # =========================
+        # BLUR
+        # =========================
+
+        blur_name = f"{base_name}_blur.jpg"
+
+        blur_path = f"{PROCESSED_DIR}/{blur_name}"
+
+        blur = image.filter(ImageFilter.BLUR)
+
+        blur.save(blur_path)
+
+        log(f"{worker_id} blur completado")
+
+        # =========================
+        # STATUS FINAL
+        # =========================
+
+        redis_client.hset(
+            "tasks_status",
+            task_id,
+            json.dumps({
+                "status": "completed",
+
+                "resized": resized_name,
+
+                "thumbnail": thumb_name,
+
+                "grayscale": gray_name,
+
+                "png": png_name,
+
+                "blur": blur_name
+            })
+        )
+
+        log(f"{worker_id} terminó {filename}")
+
     except Exception as e:
-        print(f"Unexpected error: {e}", flush=True)
-        time.sleep(3)
 
+        log(f"ERROR {worker_id}: {str(e)}")
 
-print("Worker stopped.", flush=True)
+        time.sleep(2)

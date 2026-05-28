@@ -1,36 +1,28 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sse_starlette.sse import EventSourceResponse
 
-from redis import Redis
-from rq import Queue
-
-from uuid import uuid4
-
-import os
+import redis
+import uuid
 import json
-import asyncio
-
-from tasks import process_image
+import os
+import time
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-redis_conn = Redis(
+redis_client = redis.Redis(
     host="redis",
     port=6379,
     decode_responses=True
 )
-
-queue = Queue(connection=redis_conn)
 
 UPLOAD_DIR = "uploads"
 PROCESSED_DIR = "processed"
@@ -38,105 +30,105 @@ PROCESSED_DIR = "processed"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 
-app.mount(
-    "/processed",
-    StaticFiles(directory=PROCESSED_DIR),
-    name="processed"
-)
+app.mount("/processed", StaticFiles(directory=PROCESSED_DIR), name="processed")
+
 
 @app.get("/")
-async def root():
-    return {
-        "message": "Backend funcionando"
-    }
+def home():
+    return {"message": "Backend funcionando"}
+
 
 @app.post("/upload")
-async def upload_image(
-    file: UploadFile = File(...)
-):
+async def upload_image(file: UploadFile = File(...)):
 
-    task_id = str(uuid4())
+    task_id = str(uuid.uuid4())
 
     filename = f"{task_id}_{file.filename}"
 
-    filepath = os.path.join(
-        UPLOAD_DIR,
-        filename
-    )
+    filepath = f"{UPLOAD_DIR}/{filename}"
 
-    with open(filepath, "wb") as f:
-        f.write(await file.read())
+    with open(filepath, "wb") as buffer:
+        buffer.write(await file.read())
 
-    redis_conn.set(
-        f"task:{task_id}",
+    task = {
+        "id": task_id,
+        "filename": filename
+    }
+
+    redis_client.rpush("tasks", json.dumps(task))
+
+    redis_client.hset(
+        "tasks_status",
+        task_id,
         json.dumps({
-            "status": "pending"
+            "status": "queued"
         })
     )
 
-    queue.enqueue(
-        process_image,
-        filepath,
-        task_id
-    )
-
     return {
-        "task_id": task_id,
-        "status": "pending"
+        "task_id": task_id
     }
 
-@app.get("/status/{task_id}")
-async def status(task_id: str):
 
-    data = redis_conn.get(
-        f"task:{task_id}"
-    )
+@app.get("/status/{task_id}")
+def get_status(task_id: str):
+
+    data = redis_client.hget("tasks_status", task_id)
 
     if not data:
-
-        return JSONResponse(
-            status_code=404,
-            content={
-                "error": "Task not found"
-            }
-        )
+        return {
+            "status": "not_found"
+        }
 
     return json.loads(data)
 
-@app.get("/events/{task_id}")
-async def events(task_id: str):
 
-    async def event_generator():
+@app.get("/dashboard")
+def dashboard():
 
-        last_status = None
+    workers = redis_client.hgetall("workers_status")
 
-        while True:
+    workers_data = {}
 
-            data = redis_conn.get(
-                f"task:{task_id}"
-            )
+    for key, value in workers.items():
 
-            if data:
+        try:
+            workers_data[key] = json.loads(value)
+        except:
+            pass
 
-                parsed = json.loads(data)
+    queued = 0
+    processing = 0
+    completed = 0
 
-                if parsed["status"] != last_status:
+    tasks = redis_client.hgetall("tasks_status")
 
-                    last_status = parsed["status"]
+    for _, value in tasks.items():
 
-                    yield {
-                        "event": "message",
-                        "data": json.dumps(parsed)
-                    }
+        try:
+            task = json.loads(value)
 
-                    if parsed["status"] in [
-                        "completed",
-                        "error"
-                    ]:
-                        break
+            status = task.get("status")
 
-            await asyncio.sleep(1)
+            if status == "queued":
+                queued += 1
 
-    return EventSourceResponse(
-        event_generator()
-    )
+            elif status == "processing":
+                processing += 1
+
+            elif status == "completed":
+                completed += 1
+
+        except:
+            pass
+
+    logs = redis_client.lrange("logs", 0, 20)
+
+    return {
+        "workers": len(workers_data),
+        "queued": queued,
+        "processing": processing,
+        "completed": completed,
+        "workers_status": workers_data,
+        "logs": logs
+    }

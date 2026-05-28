@@ -1,310 +1,230 @@
-const API_URL =
-"http://44.214.240.84:8000"
+const API = "http://44.214.240.84:8000";
 
-const dropZone =
-document.getElementById("dropZone")
-
-const fileInput =
-document.getElementById("fileInput")
-
-const tasksContainer =
-document.getElementById("tasks")
+const imageInput = document.getElementById("imageInput");
+const uploadBox = document.getElementById("uploadBox");
+const tasksContainer = document.getElementById("tasks");
+const logsContainer = document.getElementById("logs");
 
 
-// ======================
+// =======================
 // DRAG & DROP
-// ======================
+// =======================
 
-dropZone.addEventListener(
-    "dragover",
-    (e)=>{
+uploadBox.addEventListener("dragover", (e) => {
 
-        e.preventDefault()
+    e.preventDefault();
 
-        dropZone.classList.add(
-            "dragover"
-        )
-    }
-)
+    uploadBox.classList.add("dragging");
+});
 
-dropZone.addEventListener(
-    "dragleave",
-    ()=>{
+uploadBox.addEventListener("dragleave", () => {
 
-        dropZone.classList.remove(
-            "dragover"
-        )
-    }
-)
-
-dropZone.addEventListener(
-    "drop",
-    (e)=>{
-
-        e.preventDefault()
-
-        dropZone.classList.remove(
-            "dragover"
-        )
-
-        fileInput.files =
-        e.dataTransfer.files
-    }
-)
+    uploadBox.classList.remove("dragging");
+});
 
 
-// ======================
-// UPLOAD IMAGE
-// ======================
+uploadBox.addEventListener("drop", async (e) => {
 
-async function uploadImage(){
+    e.preventDefault();
 
-    const file =
-    fileInput.files[0]
+    uploadBox.classList.remove("dragging");
 
-    if(!file){
+    const files = e.dataTransfer.files;
 
-        alert(
-            "Selecciona una imagen"
-        )
+    uploadImage(files);
+});
 
-        return
+
+// =======================
+// SUBIR IMÁGENES
+// =======================
+
+async function uploadImage(customFiles = null) {
+
+    const files = customFiles || imageInput.files;
+
+    if (!files.length) {
+
+        alert("Selecciona imágenes");
+
+        return;
     }
 
-    const formData =
-    new FormData()
+    for (const file of files) {
 
-    formData.append(
-        "file",
-        file
-    )
+        if (!file.type.startsWith("image/")) {
+            continue;
+        }
 
-    try{
+        const formData = new FormData();
 
-        const response =
-        await fetch(
-            `${API_URL}/upload`,
-            {
-                method:"POST",
-                body:formData
-            }
-        )
+        formData.append("file", file);
 
-        const data =
-        await response.json()
+        const response = await fetch(`${API}/upload`, {
 
-        createTaskCard(
-            data.task_id
-        )
+            method: "POST",
 
-        listenTask(
-            data.task_id
-        )
+            body: formData
+        });
 
-        saveTask(
-            data.task_id
-        )
+        const data = await response.json();
 
-    }catch(error){
-
-        console.error(error)
-
-        alert(
-            "Error conectando backend"
-        )
+        createTaskCard(data.task_id);
     }
 }
 
 
-// ======================
-// TASK CARD
-// ======================
+// =======================
+// CREAR TARJETA
+// =======================
 
-function createTaskCard(taskId){
+function createTaskCard(taskId) {
 
-    const card =
-    document.createElement("div")
+    const card = document.createElement("div");
 
-    card.className =
-    "task"
+    card.className = "task-card";
 
-    card.id = taskId
+    card.id = taskId;
 
     card.innerHTML = `
-        <h3>
-            📦 Tarea ${taskId}
-        </h3>
 
-        <div class="
-            status loading
-        ">
-            Estado: pending
+        <h3>${taskId}</h3>
+
+        <div class="progress">
+
+            <div class="progress-bar" id="bar-${taskId}"></div>
+
         </div>
-    `
 
-    tasksContainer.prepend(card)
+        <p id="status-${taskId}">
+            ⏳ En cola...
+        </p>
+
+        <div class="images-grid" id="images-${taskId}"></div>
+    `;
+
+    tasksContainer.prepend(card);
+
+    monitorTask(taskId);
 }
 
 
-// ======================
-// SSE
-// ======================
+// =======================
+// MONITOREAR ESTADO
+// =======================
 
-function listenTask(taskId){
+function monitorTask(taskId) {
 
-    const eventSource =
-    new EventSource(
-        `${API_URL}/events/${taskId}`
-    )
+    const interval = setInterval(async () => {
 
-    eventSource.onmessage =
-    (event)=>{
+        try {
 
-        const data =
-        JSON.parse(event.data)
+            const response = await fetch(`${API}/status/${taskId}`);
 
-        const card =
-        document.getElementById(taskId)
+            const data = await response.json();
 
-        const statusDiv =
-        card.querySelector(".status")
+            const statusText = document.getElementById(`status-${taskId}`);
 
-        statusDiv.innerHTML =
-        `Estado: ${data.status}`
+            const progressBar = document.getElementById(`bar-${taskId}`);
 
-        // PROCESSING
+            if (data.status === "queued") {
 
-        if(
-            data.status ===
-            "processing"
-        ){
+                progressBar.style.width = "20%";
 
-            statusDiv.className =
-            "status loading"
+                statusText.innerHTML = "⏳ En cola...";
+            }
+
+            if (data.status === "processing") {
+
+                progressBar.style.width = "60%";
+
+                statusText.innerHTML = "⚙️ Procesando...";
+            }
+
+            if (data.status === "completed") {
+
+                clearInterval(interval);
+
+                progressBar.style.width = "100%";
+
+                statusText.innerHTML = "✅ Completado";
+
+                document.getElementById(`images-${taskId}`).innerHTML = `
+
+                    <div class="image-card">
+                        <h4>Resize</h4>
+                        <img src="${API}/processed/${data.resized}">
+                    </div>
+
+                    <div class="image-card">
+                        <h4>Thumbnail</h4>
+                        <img src="${API}/processed/${data.thumbnail}">
+                    </div>
+
+                    <div class="image-card">
+                        <h4>Grayscale</h4>
+                        <img src="${API}/processed/${data.grayscale}">
+                    </div>
+
+                    <div class="image-card">
+                        <h4>PNG</h4>
+                        <img src="${API}/processed/${data.png}">
+                    </div>
+
+                    <div class="image-card">
+                        <h4>Blur</h4>
+                        <img src="${API}/processed/${data.blur}">
+                    </div>
+                `;
+            }
+
+        } catch (err) {
+
+            console.log(err);
         }
 
-        // COMPLETED
-
-        if(
-            data.status ===
-            "completed"
-        ){
-
-            statusDiv.className =
-            "status completed"
-
-            card.innerHTML += `
-                <img
-                src="
-                ${API_URL}
-                ${data.image_url}
-                ">
-
-                <br>
-
-                <a
-                href="
-                ${API_URL}
-                ${data.image_url}
-                "
-                target="_blank"
-                >
-
-                    <button>
-                        Descargar
-                    </button>
-
-                </a>
-            `
-
-            eventSource.close()
-        }
-
-        // ERROR
-
-        if(
-            data.status ===
-            "error"
-        ){
-
-            statusDiv.className =
-            "status error"
-
-            card.innerHTML += `
-                <p>
-                    Error:
-                    ${data.message}
-                </p>
-            `
-
-            eventSource.close()
-        }
-    }
+    }, 1000);
 }
 
 
-// ======================
+// =======================
 // DASHBOARD
-// ======================
+// =======================
 
-async function loadDashboard(){
+async function loadDashboard() {
 
-    try{
+    try {
 
-        const response =
-        await fetch(
-            `${API_URL}/dashboard`
-        )
+        const response = await fetch(`${API}/dashboard`);
 
-        const data =
-        await response.json()
+        const data = await response.json();
 
-        document.getElementById(
-            "workersCount"
-        ).innerText =
-        data.workers.length
+        document.getElementById("workers").innerText = data.workers;
 
-        document.getElementById(
-            "pendingJobs"
-        ).innerText =
-        data.pending_jobs
+        document.getElementById("queued").innerText = data.queued;
 
-        document.getElementById(
-            "completedJobs"
-        ).innerText =
-        data.completed_jobs
+        document.getElementById("completed").innerText = data.completed;
 
-    }catch(error){
+        logsContainer.innerHTML = "";
 
-        console.error(error)
+        data.logs.forEach(log => {
+
+            const div = document.createElement("div");
+
+            div.className = "log";
+
+            div.innerText = log;
+
+            logsContainer.prepend(div);
+        });
+
+    } catch (err) {
+
+        console.log(err);
     }
 }
 
-setInterval(
-    loadDashboard,
-    2000
-)
 
-loadDashboard()
+setInterval(loadDashboard, 1000);
 
-
-// ======================
-// LOCAL STORAGE
-// ======================
-
-function saveTask(taskId){
-
-    const tasks =
-    JSON.parse(
-        localStorage.getItem(
-            "tasks"
-        ) || "[]"
-    )
-
-    tasks.push(taskId)
-
-    localStorage.setItem(
-        "tasks",
-        JSON.stringify(tasks)
-    )
-}
+loadDashboard();

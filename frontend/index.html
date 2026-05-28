@@ -1,26 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
 
     <meta charset="UTF-8">
 
-    <meta
-        name="viewport"
-        content="
-        width=device-width,
-        initial-scale=1.0
-        "
-    >
+    <title>Procesador Distribuido</title>
 
-    <title>
-        Procesador Distribuido
-    </title>
-
-    <link
-        rel="stylesheet"
-        href="style.css"
-    >
+    <link rel="stylesheet" href="style.css">
 
 </head>
 
@@ -28,87 +14,58 @@
 
     <div class="container">
 
-        <h1>
-            🚀 Procesador Distribuido
-            de Imágenes
-        </h1>
+        <h1>Procesador Distribuido de Imágenes</h1>
 
-        <!-- DASHBOARD -->
+        <div class="stats">
 
-        <div class="dashboard">
-
-            <div class="dashboard-card">
-
-                <h2 id="workersCount">
-                    0
-                </h2>
-
-                <p>
-                    Workers Activos
-                </p>
-
+            <div class="card">
+                <h2 id="workers">0</h2>
+                <p>Workers</p>
             </div>
 
-            <div class="dashboard-card">
-
-                <h2 id="pendingJobs">
-                    0
-                </h2>
-
-                <p>
-                    Tareas Pendientes
-                </p>
-
+            <div class="card">
+                <h2 id="queued">0</h2>
+                <p>En cola</p>
             </div>
 
-            <div class="dashboard-card">
-
-                <h2 id="completedJobs">
-                    0
-                </h2>
-
-                <p>
-                    Tareas Completadas
-                </p>
-
+            <div class="card">
+                <h2 id="completed">0</h2>
+                <p>Completadas</p>
             </div>
 
         </div>
 
-        <!-- DROP ZONE -->
+        <div class="upload-box" id="uploadBox">
 
-        <div
-            class="drop-zone"
-            id="dropZone"
-        >
-
-            <h2>
-                Arrastra una imagen aquí
-            </h2>
-
-            <p>
-                o selecciona un archivo
-            </p>
+            <h2>📂 Arrastra imágenes o carpetas aquí</h2>
 
             <input
                 type="file"
-                id="fileInput"
-                accept="image/*"
+                id="imageInput"
+                multiple
+                webkitdirectory
+                directory
             >
 
-            <br>
-
-            <button
-                onclick="uploadImage()"
-            >
-                Subir Imagen
+            <button onclick="uploadImage()">
+                Subir Imágenes
             </button>
 
         </div>
 
-        <!-- TASKS -->
+        <div class="section">
 
-        <div id="tasks">
+            <h2>📋 Tareas</h2>
+
+            <div id="tasks"></div>
+
+        </div>
+
+        <div class="section">
+
+            <h2>🖥 Logs en tiempo real</h2>
+
+            <div id="logs"></div>
 
         </div>
 
@@ -117,5 +74,4 @@
     <script src="app.js"></script>
 
 </body>
-
 </html>

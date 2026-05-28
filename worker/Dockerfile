@@ -1,10 +1,11 @@
-FROM python:3.12-slim
+FROM python:3.12
 
-WORKDIR /worker
+WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-COPY worker.py .
+RUN pip install -r requirements.txt
+
+COPY . .
 
 CMD ["python", "worker.py"]

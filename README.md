@@ -1,251 +1,185 @@
-# Worker Redis Image Processing System
+# 🎬 Distributed Image Processing System ☁️
 
-Sistema distribuido para procesamiento de imágenes utilizando Redis, FastAPI y múltiples workers paralelos con Docker Compose.
+## 📚 Información del Proyecto
+🎓 **Materia:** Programación web - TECNM Campus ITT  
+👨‍💻 **Autor:** Javier N. López Prudencio  
+📅 **Fecha:** 2026/05/29  
+
+## 🎯 Descripción
+Sistema web moderno y escalable para la subida y procesamiento distribuido de imágenes utilizando arquitectura basada en Redis, workers y Docker.
+
+Este proyecto permite:
+
+- ✔ Subir imágenes desde una interfaz web
+- ✔ Procesar imágenes de forma asíncrona
+- ✔ Gestionar múltiples workers simultáneamente
+- ✔ Consultar estados en tiempo real
+- ✔ Escalar horizontalmente con Docker Compose
 
 ---
 
-# 🚀 Características
+## 🚀 Características
 
-* Arquitectura distribuida basada en workers
-* Cola de trabajos con Redis
-* Backend REST API con FastAPI
-* Procesamiento paralelo de imágenes
-* Docker Compose listo para despliegue
-* Escalable horizontalmente
-* Manejo de estados de jobs
-* Sistema desacoplado y modular
+- 🖼️ Subida de imágenes
+- ⚡ Procesamiento distribuido
+- 🔄 Cola de tareas con Redis
+- 📡 API REST con FastAPI
+- 🐳 Contenedores Docker
+- 🌐 Frontend con Nginx
+- 📊 Monitoreo de tareas
+- 📈 Escalabilidad horizontal
 
 ---
 
-# 🧱 Arquitectura
+## ⚙️ Tecnologías
+
+| Tecnología | Uso |
+|---|---|
+| 🐍 Python | Backend y workers |
+| ⚡ FastAPI | API REST |
+| 🔴 Redis | Cola de tareas |
+| 🐳 Docker | Contenedores |
+| 🧩 Docker Compose | Orquestación |
+| 🌐 Nginx | Frontend |
+| 🎨 HTML/CSS/JS | Interfaz web |
+
+---
+
+## 🏗️ Arquitectura
 
 ```text
-Frontend / Cliente
-        │
-        ▼
- FastAPI Backend
-        │
-        ▼
-     Redis Queue
-        │
+Frontend (Nginx)
+       │
+       ▼
+FastAPI Backend
+       │
+       ▼
+Redis Queue
+       │
  ┌───────────────┐
- │    Workers    │
- │   worker1     │
- │   worker2     │
- │   worker3     │
+ │   Workers     │
+ │ Worker 1      │
+ │ Worker 2      │
+ │ Worker 3      │
+ │ Worker N      │
  └───────────────┘
-        │
-        ▼
- Procesamiento de imágenes
+       │
+       ▼
+Procesamiento de Imágenes
 ```
 
 ---
 
-# 📂 Estructura del Proyecto
+## 📂 Estructura del Proyecto
 
 ```text
-.
+worker-redis-image/
+│
 ├── backend/
 │   ├── main.py
-│   ├── jobs.py
-│   ├── tasks.py
+│   └── requirements.txt
+│
+├── worker/
 │   ├── worker.py
 │   └── requirements.txt
 │
 ├── frontend/
-├── uploads/
-├── processed/
-├── images/
+│   ├── index.html
+│   ├── script.js
+│   └── styles.css
+│
 ├── docker-compose.yml
-├── redis_client.py
 └── README.md
 ```
 
 ---
 
-# ⚙️ Tecnologías Utilizadas
+## ▶️ Ejecución del Proyecto
 
-* Python 3.12+
-* FastAPI
-* Redis
-* Docker
-* Docker Compose
-
----
-
-# 🐳 Instalación
-
-## 1. Clonar repositorio
+### 🔨 Construir contenedores
 
 ```bash
-git clone https://github.com/JavierNLopez/worker-redis-image.git
-cd worker-redis-image
+docker compose build
 ```
 
----
-
-## 2. Levantar servicios
+### 🚀 Levantar servicios
 
 ```bash
-docker compose up --build -d
+docker compose up -d --scale worker=5
 ```
 
----
-
-# 🌐 Servicios
-
-| Servicio        | Puerto |
-| --------------- | ------ |
-| FastAPI Backend | 8000   |
-| Redis           | 6379   |
-
----
-
-# 📌 API Endpoints
-
-## Crear Job
-
-```http
-POST /jobs
-```
-
-Respuesta:
-
-```json
-{
-  "job_id": "uuid",
-  "status": "queued"
-}
-```
-
----
-
-## Obtener Estado del Job
-
-```http
-GET /jobs/{job_id}
-```
-
-Respuesta:
-
-```json
-{
-  "status": "done",
-  "result": "ok"
-}
-```
-
----
-
-## Health Check
-
-```http
-GET /
-```
-
-Respuesta:
-
-```json
-{
-  "status": "ok",
-  "service": "backend"
-}
-```
-
----
-
-# 🔥 Estados de Jobs
-
-| Estado     | Descripción                 |
-| ---------- | --------------------------- |
-| queued     | Trabajo en cola             |
-| processing | Procesando                  |
-| done       | Completado                  |
-| error      | Error durante procesamiento |
-
----
-
-# 🧠 Redis Job Structure
-
-Cada trabajo se almacena utilizando:
-
-```text
-job:<job_id>
-```
-
-como HASH en Redis.
-
-Ejemplo:
-
-```text
-job:1234-abcd
-```
-
-Campos:
-
-* status
-* result
-* worker
-
----
-
-# 🚀 Escalabilidad
-
-Puedes aumentar fácilmente el número de workers:
+### 📦 Ver contenedores activos
 
 ```bash
-docker compose up --scale worker=5
+docker ps
+```
+
+### 📜 Ver logs del backend
+
+```bash
+docker logs -f worker-redis-image-backend-1
+```
+
+### ⚙️ Ver logs de workers
+
+```bash
+docker logs -f worker-redis-image-worker-1
 ```
 
 ---
 
-# 📦 Docker
+## 🌐 Acceso al Sistema
 
-Levantar contenedores:
+| Servicio | URL |
+|---|---|
+| Frontend | http://localhost:5500 |
+| Backend API | http://localhost:8000 |
+| Swagger Docs | http://localhost:8000/docs |
+
+---
+
+## 📡 Flujo del Sistema
+
+1. Usuario sube una imagen
+2. Backend genera un `job_id`
+3. Redis almacena la tarea en cola
+4. Worker consume la tarea
+5. Imagen procesada
+6. Estado cambia a `completed`
+7. Frontend actualiza automáticamente
+
+---
+
+## 📈 Escalabilidad
 
 ```bash
-docker compose up --build
-```
-
-Detener servicios:
-
-```bash
-docker compose down
+docker compose up -d --scale worker=10
 ```
 
 ---
 
-# 🛠 Desarrollo
+## 🧠 Conceptos Aplicados
 
-Ver logs:
-
-```bash
-docker logs -f backend
-docker logs -f worker1
-```
-
-Entrar a Redis CLI:
-
-```bash
-docker exec -it redis redis-cli
-```
+- Arquitectura distribuida
+- Procesamiento asíncrono
+- Microservicios
+- Docker
+- Escalabilidad horizontal
+- Colas de mensajes
+- Cloud Computing
 
 ---
 
-# 📌 Futuras Mejoras
+## ✅ Estado del Proyecto
 
-* Dashboard en tiempo real
-* WebSockets / SSE
-* Auto-scaling de workers
-* Retry automático de jobs
-* Persistencia avanzada
-* Balanceo de carga
+- ✔ Backend funcional
+- ✔ Redis operativo
+- ✔ Workers escalables
+- ✔ Frontend conectado
+- ✔ Procesamiento distribuido
 
 ---
 
-# 👨‍💻 Autor
+## 👨‍💻 Autor
 
-Desarrollado por Javier Lopez.
-
-GitHub:
-https://github.com/JavierNLopez
+**Javier N. López Prudencio**
